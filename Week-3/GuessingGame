@@ -3,9 +3,7 @@
  *  the program continues to run until the person guesses the correct #.  
  *  A.Bunk 6.8.2014
  */
-
-package abunkmod3;
-
+ 
 import java.util.Scanner;
 
 public class GuessingGame 
