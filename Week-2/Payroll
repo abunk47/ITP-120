@@ -4,8 +4,6 @@
  * A.Bunk 5.31.2014
  */
 
-package abunkmod2;
-
 import java.text.NumberFormat;
 
 public class PayrollDriver 
