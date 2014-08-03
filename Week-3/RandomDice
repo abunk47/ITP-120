@@ -4,8 +4,6 @@
  * A.Bunk 6.6.2014
  */
 
-package abunkmod3;
-
 public class DiceGame 
 {
 	public static void main (String [] args)
