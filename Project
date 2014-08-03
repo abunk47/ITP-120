@@ -1,0 +1,2949 @@
+/**
+ *  This program allows a user to interact with data from a garden nursery.  It allows the user to add/delete
+ *  and export/import customer, sales, and inventory data. The code is a mix of Dr. Wolff's and my own. 
+ *  @author A.Bunk 7.11.2014
+ */
+
+
+import java.text.NumberFormat;
+import java.util.*;
+import java.awt.FileDialog;
+import java.awt.Frame;
+import java.io.*;
+
+
+public class RunNursery 
+{
+
+	/**
+	 * Main driver program.
+	 * @param args
+	 */
+	public static void main(String[] args) 
+	{
+		
+		// Setup the array lists for customer, sales, and inventory
+		ArrayList<Customer> cust = new ArrayList<Customer>();
+		ArrayList<Sales> sales = new ArrayList<Sales>();
+		ArrayList<Inventory> inv = new ArrayList<Inventory>();
+		MenuInfo mi = new MenuInfo();
+		InventoryMenu im = new InventoryMenu();
+		ImportMenu imMenu = new ImportMenu();
+		ExportMenu emMenu = new ExportMenu();
+		Analytics a = new Analytics();
+		CustMenu cm = new CustMenu();
+		NumberFormat currency = NumberFormat.getCurrencyInstance();
+		// load the customer data
+		loadData(cust, sales, inv);
+		// if possible we should set up a window the user can use to interact with to make their selections
+		// that would be a lot better than the current situation
+		int choice = 0;
+		// Continuing looping through the menu until the user exits
+		// need to finish filling all of these in
+		while (choice !=13)
+		{
+			// Show the menu
+			choice = showMenu();
+			if (choice==-1)
+				mi.printAll(cust,sales,inv);
+			else if (choice== 1) 
+				mi.printSales(sales);
+			else if (choice== 2)
+			{  // should be sorted  alphabetically by the inventory name
+				// need to figure out what is wrong here
+				im.compareInv(inv);
+				System.out.println("\nInventory:");
+				double total = 0;
+				for (int i = 0; i < inv.size(); ++i)
+				{
+					System.out.println(inv.get(i).toString());
+					total = (inv.get(i).getCost() * inv.get(i).getNumInStock()) + total;
+				}
+				
+				System.out.println("\nThe total value of all inventory is: " + currency.format(total));
+			}
+			else if (choice== 3) 
+			{
+				cm.compareCust(cust);
+				for (int i = 0; i < cust.size(); ++i)
+					System.out.println(cust.get(i).toString());
+			}
+			else if (choice== 4) 
+				cm.addCust(cust);
+			else if (choice== 5) 
+				cm.deleteCust(cust);
+			else if (choice== 6) 
+				sale(inv, sales, cust);
+			else if (choice== 7)
+				im.invMenu(inv);	
+			else if (choice== 8)  
+				a.findSales(inv, sales);
+			else if (choice== 9) 
+				im.searchInv(inv);
+			else if (choice== 10) 
+			{
+				Scanner scan = new Scanner (System.in);
+				int decision = 0;
+				try 
+				{
+					while (decision != 4)
+					{
+		    			System.out.println("Please select a file type to import:\n");
+		    			System.out.println("1. Customer Information\n" + "2. Sales Information\n" + "3. Inventory Information\n" + "4. Exit");
+		    			decision = scan.nextInt();
+		    			if (decision == 1)
+		    			{
+		    				System.out.println("Please choose a location to import the Customer file: ");
+		    				cust = imMenu.readSerializableCust();
+		    			}
+		    			else if (decision == 2)
+		    			{
+		    				System.out.println("Please choose a location to import the Sales file: ");
+		    				sales = imMenu.readSerializableSales();
+		    			}
+		    			else if (decision == 3)
+		    			{
+		    				System.out.println("Please choose a location to import the Inventory file: ");
+		    				inv = imMenu.readSerializableInv(); 				
+		    			}
+		    			else if (decision == 4)
+		    				System.out.println("Thank you!");
+		    			else if (decision > 4)
+		    				System.out.println("That is not a valid choice. Please try again!");
+		    			else if (decision < 1)
+				            System.out.println("That is not a valid choice. Please try again!");
+					}
+				}
+				catch (InputMismatchException e)
+				{
+					System.out.println ("That is not a valid choice. Please try again!");  
+					scan.nextLine();
+				}  
+				
+				
+			}
+			else if (choice== 11) 
+				emMenu.menu(cust, sales, inv);
+	    	else if (choice== 12) 
+	    	{
+	    		Scanner scan = new Scanner (System.in);
+	    		int password = 0;
+	    		while (password != 1234)
+	    		{
+	    			try 
+	    			{
+	    				System.out.println ("Please enter the Manager Password or press 2 to exit:");
+	    				password = scan.nextInt();
+	    				if (password == 1234)
+	    					clearAll(cust, sales, inv);
+	    				if (password == 2) 
+	    					break;
+	    				if (password > 2 && password != 1234)
+	    					System.out.println("That is not a valid choice. Please try again!");
+	    				if (password < 2) 
+	    					System.out.println("That is not a valid choice. Please try again!");
+	    			}
+	    			catch (InputMismatchException e)
+	    			{
+	    				System.out.println ("That is not a valid choice. Please try again!");  
+	    				scan.nextLine();
+	    			}  
+	    		}
+	    	}
+	    
+	    	else if (choice== 13) 
+	    	{
+	    		System.out.println("Thanks for using my program!");
+	    		System.exit(0);
+	    		// should write out the files and close
+	    	}
+	    	else if (choice > 13)
+	    		System.out.println ("That is not a valid choice. Please try again!");
+	    	else if (choice < -1)
+	    		System.out.println ("That is not a valid choice. Please try again!");
+		} // end of while loop
+	} // end of main method
+
+	/**
+	 * This is the menu that is displayed to the user to select what they want to do in the main program.
+	 * @return
+	 */
+	public static int showMenu()
+	{
+		int value = 0;
+		Scanner scan = new Scanner(System.in);
+		try 
+		{
+		    System.out.println("\n\nPlease choose from one of the following options:");
+		    System.out.println("    (-1 to list all of the raw data)");
+		    // DONE FOR YOU but you need to fix the net sales cost
+		    System.out.println("1.  Print all sales and the total value");
+		    // each sales should have a sub-total (the one you fixed above) and then an overall total for all of the sales
+		    System.out.println("2.  Print all inventory items and total values");
+		    // should be sorted  alphabetically by the inventory name
+		    System.out.println("3.  List all current customers");
+		    // alphabetically by last and then first name
+		    System.out.println("4.  Add a customer");
+		    // make certain that they are unique.  No duplicate first plus last names
+		    System.out.println("5.  Delete a customer");
+		    // Indicate if they do not exist
+		    System.out.println("6.  Make a sale");
+		    // make certain to deduct the amount from inventory.  
+		    // Make certain that there is enough in the inventory for the sales
+		    // Make certain to add the sales to the sales list
+		    
+		    System.out.println("7.  Add, Delete, or Edit Inventory");
+		    // should be able to add to a current inventory item or add a new item
+		    // should be able to edit only the two prices
+		    // a sub-menu would work well here.
+		    System.out.println("8.  List all sales for a given item sorted by date");
+		    // show them all the inventory items and ask them for the inventory id
+		    // then show all sales for that item sorted by date
+		    System.out.println("9.  Search for item by name or part name");
+		    // if I put in "maple", it should find all of the maples
+		    System.out.println ("10. Import Customer, Sales, or Inventory data");
+		    // need to check if these work
+		    System.out.println ("11. Export Customer, Sales, or Inventory data");
+		    // need to check if these work
+		    System.out.println ("12. Clear Data (Need Manager Password)");
+		    // need to check if these work
+		    System.out.println("13. Exit");
+		    // should write out the files and close
+		    value = scan.nextInt();
+
+		}
+		catch (InputMismatchException e)
+		{
+			System.out.println ("That is not a valid choice. Please try again!");  
+			scan.nextLine();
+		} 
+		return value;
+	}
+	
+	/**
+	 * This method basically just loads the data into the different ArrayLists created in the main method.
+	 * I modified the dates of the sales so as to make them more recent for the use of the Analytics class
+	 * @param cust
+	 * @param sales
+	 * @param inv
+	 */
+	public static void loadData(ArrayList<Customer> cust, ArrayList<Sales> sales, ArrayList<Inventory> inv)
+	{
+	  // Some customer data
+	  cust.add(new Customer("Wolff", "Diane", "Retail", 0));
+	  cust.add(new Customer("Mouse", "Mickey", "Retail", 0));
+	  cust.add(new Customer("Duck", "Donald", "Wholesale", 15));
+	  cust.add(new Customer("Miller", "Mike", "Wholesale", 10));
+	  // Some inventory data
+	  inv.add(new BulkProducts(0.10, "Soil", 50000, 0.25, 100000));
+	  inv.add(new BulkProducts(0.30, "Mulch", 5000, 0.60, 10000));
+	  inv.add(new Perennials(1.75, "Lilly", 75, 4.99, "white"));
+	  inv.add(new Perennials(5.99, "KnockOut Rose", 500, 10.99, "purple"));
+	  inv.add(new Perennials(12.99, "KnockOut Rose", 500, 19.99, "yellow"));
+	  inv.add(new Trees(16.00, "Eastern White Pine", 300, 29.50, true));
+	  inv.add(new Trees(35.00, "Sugar Maple", 90, 65.00, false));
+	  inv.add(new Trees(120.00, "Japanese Maple", 25, 165.00, false));
+	  inv.add(new Trees(82.00, "Norway Maple", 12, 165.00, false));
+	  inv.add(new Trees(20.00, "Virginia Pine", 30, 45.00, true));
+	  // Some sales data
+	  sales.add(new Sales(cust.get(0), new Day(), inv.get(5), 25));
+	  sales.add(new Sales(cust.get(1), new Day(2014, 5, 30), inv.get(0), 3500));
+	  sales.add(new Sales(cust.get(2), new Day(2013, 10, 29), inv.get(4), 5));
+	  sales.add(new Sales(cust.get(3), new Day(2013, 10, 28), inv.get(2), 10));
+	  sales.add(new Sales(cust.get(0), new Day(2013, 12, 28), inv.get(3), 15));
+	  sales.add(new Sales(cust.get(1), new Day(2014, 1, 27), inv.get(5), 20));
+	  sales.add(new Sales(cust.get(2), new Day(2014, 2, 26), inv.get(0), 25));
+	  sales.add(new Sales(cust.get(3), new Day(2014, 2, 26), inv.get(4), 30));
+	  sales.add(new Sales(cust.get(0), new Day(2014, 3, 26), inv.get(2), 35));
+	  sales.add(new Sales(cust.get(1), new Day(2014, 3, 25), inv.get(3), 40));
+	  sales.add(new Sales(cust.get(2), new Day(2014, 4, 24), inv.get(1), 45));
+	  sales.add(new Sales(cust.get(3), new Day(2014, 4, 20), inv.get(1), 50));
+	}
+
+	/**
+	 * Clears out all the ArrayLists.
+	 * @param cust
+	 * @param sales
+	 * @param inv
+	 */
+	private static void clearAll(ArrayList<Customer> cust, ArrayList<Sales> sales, ArrayList<Inventory> inv)
+	{
+		cust.removeAll(cust);
+		sales.removeAll(sales);
+		inv.removeAll(inv);
+		System.out.println("All records have been successfully deleted.");
+	}
+ 
+	/**
+	 * This method conducts a sale and will create a new sales object and will deduct the item the user purchases from the 
+	 * appropriate object in the Inventory ArrayList. The sales object will be added to the sales ArrayList as well. 
+	 * @param inv
+	 * @param s
+	 * @param cust
+	 */
+	public static void sale (ArrayList<Inventory> inv, ArrayList<Sales> s, ArrayList<Customer> cust )
+	{
+		// create a new sale item
+		Scanner scan = new Scanner(System.in);
+		Sales newSale = new Sales ();
+		int choice = 0; // used to identify the inventory item the user wants to purchase
+		int amount = 0; // used to determine how many of the item the customer wants to purchase
+		int custId = 0; // used to determine the Customer that is making the purchase
+		boolean custCheck = false; // used to see if the customer is in the system
+		boolean invCheck = false; // used to see if the item is in the inventory
+		// set up a menu to add the customer's sale id, the inv # and sale amount, 
+		while (custId != -999)
+		{
+			try
+			{
+				for (Customer c : cust)
+				{
+					System.out.println (c.toString());
+				}
+				System.out.println ("\nPlease enter the Customer # of the purchaser: (or enter -999 to exit) ");
+				custId = scan.nextInt();
+				if (custId <= 0 && custId != -999)
+				{
+					System.out.println ("That is not a valid choice. Please try again!");  
+					continue;
+				}
+				else if (custId > 0 && custId < 100)
+				{
+					System.out.println ("That is not a valid choice. Please try again!");  
+					continue;
+				}
+				if (custId == -999)
+				{
+					custCheck = false;
+					continue;
+				}
+				boolean numFound = false;
+				for (int i = 0; i < cust.size(); ++i)
+				{
+					if (custId == cust.get(i).getCustNum())
+					{
+						newSale.setCust(cust.get(i));
+						numFound = true;
+						custCheck = true;
+						custId = -999;
+					}
+				}
+       
+				if (numFound == false)
+					System.out.println ("The customer # you entered does not exist. Please try again.");
+       
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid #. Please try again!\n");  
+				scan.nextLine();
+			}
+		} // end of custId while loop   
+		while (custCheck == true)
+		{
+			// we need to print out the inventory and have the user enter the item # and amount to purchase
+			for (Inventory i : inv)
+				System.out.println (i.toString());
+			// You need to include an if statement to make sure there is enough of the item in inventory.
+			try
+			{
+				System.out.println ("\nPlease enter the Item # of the inventory item the Customer would like to purchase: (or -999 to exit)");
+				choice = scan.nextInt();
+				if (choice <= 0 && choice != -999)
+				{
+					System.out.println ("That is not a valid choice. Please try again!");  
+					continue;
+				}
+				else if (choice > 0 && choice < 1000)
+				{
+					System.out.println ("That is not a valid choice. Please try again!");  
+					continue;
+				}
+				if (choice == -999)
+				{
+					custCheck = false;
+					break;
+				}
+				// need to make sure that item exists in the Inventory
+				boolean invFound = false;
+				for (int i = 0; i < inv.size(); ++i)
+				{
+					if (choice == inv.get(i).getInvNum())
+					{
+						newSale.setInv(inv.get(i));
+						invFound = true;
+						custCheck = false;
+						invCheck = true;
+					}
+				}    
+				if (invFound == false)
+					System.out.println ("That item does not exist in the inventory!");
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid #. Please try again!");  
+				scan.nextLine();
+			}
+		} // end of choice while loop  
+		while (invCheck == true)
+		{
+			try 
+			{
+				System.out.println ("\nPlease enter the amount in whole numbers the customer would like to purchase: (or enter -999 to exit)");
+				if (newSale.getCust().getType().equals("Retail"))
+					System.out.println ("Remember!!! Retail customers recieve a 5% discount on purchases of $200 or more everyday!");
+				amount = scan.nextInt();
+				if (amount <= 0 && amount != -999)
+				{
+					System.out.println ("Try again! This time please enter an actual amount!");  
+					continue;
+				}
+				if (amount == -999)
+				{
+					invCheck = false;
+					continue;
+				}
+				if (amount > newSale.getInv().getNumInStock())
+				{
+					System.out.println ("There is not enough of that item in stock to complete the transaction!");
+					continue;
+				}   
+				else if (amount < newSale.getInv().getNumInStock() || amount == newSale.getInv().getNumInStock())
+				{
+					System.out.println ("That amount will be deducted from the inventory.");
+					int newAmount = newSale.getInv().getNumInStock() - amount;
+					newSale.getInv().setNumInStock(newAmount);
+					newSale.setNumBought(amount);
+					Day day = new Day();
+					newSale.setDateSold(day);
+					s.add(newSale);
+					System.out.println(s.get(s.size()-1).toString());
+					invCheck = false;
+					if (newSale.getInv().getNumInStock() == 0)
+						System.out.println ("\nPlease restock " + newSale.getInv().getItemName() + " Inventory #: " + newSale.getInv().getInvNum() + ".");
+				}
+       
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid #. Please try again!");  
+				scan.nextLine();
+			}
+		} // end of amount while loop
+	} // end of method
+
+} // end of class
+
+
+/**
+ * This class creates sales objects.  These objects describe when a customer purchases an item from the inventory.
+ * These objects also populate the sales ArrayList
+ */
+
+
+
+
+public class Sales implements Serializable {
+ 
+	private Customer cust; // customer object that describes the customer's info
+	private Day dateSold; // Day object which is the date the item was sold
+	private Inventory inv; // Inventory object that describes the item
+	private int numBought; // the amount purchased
+	private int salesNum; // the sales number for tracking purposes
+	static final double SALESTAX = .0725;  // the salestax
+	NumberFormat currency = NumberFormat.getCurrencyInstance();
+	private static int nextNum = 1000; // used with the sales number above
+	 
+	 
+	public Sales()
+	{
+		salesNum = nextNum;
+		nextNum++;
+	 
+	}
+	 
+	public Sales(Customer c, Day date, Inventory in, int num)
+	{
+		cust = c;
+		dateSold = date;
+	  	inv = in;
+	  	numBought = num;
+	  	salesNum = nextNum;
+	  	nextNum++;
+	}
+	 
+	 
+	public String toString()
+	{
+		NumberFormat nf = NumberFormat.getCurrencyInstance();
+		String s = "Sales#:" + salesNum +"  " + inv.toStringCust() + "  " + cust.toString() + " bought " + 
+				numBought + " of these on " + dateSold + ".\nThe sales price was " + nf.format(inv.getSalesPrice()) + ". Sale Amount: " 
+				+ nf.format(netSales()) + ". The store's net profit on this sale is " + nf.format(netProfit()) + "." ;
+		return s;
+	}
+	
+	
+	public double netSales() 
+	{
+		// This is actually the sale amount
+		double discount = 0;
+		// formula to get the total
+		double total = inv.getSalesPrice() * numBought;
+		// if statements to figure out the discount amount
+		if (cust.getType() == "Wholesale")
+			discount = (double) cust.getDiscountPercent() / 100;
+		if (cust.getType() == "Retail" && total >= 200 )
+			discount = (double) 5 / 100;
+		else
+			discount = 0;
+		// Subtract the discount amount from the total 
+		double subTotal = (total - (total * (discount)));
+		// Add in the tax.
+		double netSales = subTotal * (1 + SALESTAX);
+		return netSales;
+	  
+	}
+	
+	public double netProfit ()
+	{
+		// we can't count the tax as profit
+		double netRevenue = netSales() - (netSales() * SALESTAX);
+		// subtract what were paid for the items to get netProfit
+		double netProfit = netRevenue - (inv.getCost() * numBought);
+		return netProfit;
+		
+	}
+	
+	
+	
+	public Customer getCust() {
+		return cust;
+	}
+	
+	 
+	public void setCust(Customer cust) {
+		this.cust = cust;
+	}
+	
+	 
+	public Day getDateSold() {
+		return dateSold;
+	}
+	
+	 
+	public void setDateSold(Day dateSold) {
+		this.dateSold = dateSold;
+	}
+	
+	public Inventory getInv() {
+		return inv;
+	}
+	
+	 
+	public void setInv(Inventory inv) {
+		this.inv = inv;
+	}
+	
+	 
+	public int getNumBought() {
+		return numBought;
+	}
+	
+	 
+	public void setNumBought(int numBought) {
+		this.numBought = numBought;
+	}
+	// added for convenience in other classes
+	public int getSalesNum() 
+	{
+		return salesNum;
+	}
+} // end of sales class
+
+/**
+ * This class allows someone to import byte files of data on customer. inventory, and sales information.
+ * The information is organized into three methods.  A user can choose which one they want to use.
+ * 
+ * @author A.Bunk 7.13.2014
+ */
+
+
+public class ImportMenu implements Serializable 
+{
+	
+	/**
+	 * This method will allow the user to import a customer file that will add the info to an ArrayList
+	 * of the Customer class. 
+	 * @return  ArrayList <Customer>
+	 */
+	public ArrayList<Customer> readSerializableCust()
+	{
+		// create the arraylist we will return
+		ArrayList<Customer> cust = new ArrayList<Customer>();
+		// create a window to hold the dialog box
+		Frame f = new Frame();  
+	    //decide from where to read the file
+	    FileDialog foBox = new FileDialog(f,"Reading serialized file", FileDialog.LOAD);
+	    foBox.setVisible(true);
+	    //get the absolute path to the file
+	    String foName = foBox.getFile();
+	    String dirPath = foBox.getDirectory();
+	    File inFile = new File(dirPath + foName);
+	 
+	    ObjectInputStream OIS = null;
+ 
+	    try
+	    {
+	    	FileInputStream IS = new FileInputStream(inFile); // create a file input stream for the file
+	    	OIS = new ObjectInputStream(IS); // create the object input stream
+	    	cust = (ArrayList<Customer>) OIS.readObject(); // note that you can read in the entire object (the array list) at once
+	    }
+	    catch (IOException io)
+	    {
+	    	io.printStackTrace();   // great for debugging!
+	    	System.out.println("An IO Exception occurred");
+	    }
+	    // note that you can also have a class not found exception.
+	    catch (ClassNotFoundException cnf)
+	    {
+	    	cnf.printStackTrace();    // great for debugging!
+	    	System.out.println("An IO Exception occurred");
+	    }
+	    finally    // finally always runs no matter what so close the file here!
+	    {
+	    	// close the file. Java is neurotic - it worried "but what if it is already closed?" so needs another try/catch 
+	    	try
+	    	{
+	    		OIS.close();
+	    	}
+	    	catch (Exception e) {}   // note the {} - means "do nothing".  I wanted it closed anyway.
+	    }
+	    return cust;
+	}
+	/**
+	 * This method will allow the user to import a sales file that will add the info to an ArrayList
+	 * of the Sales class. 
+	 * @return  ArrayList <Sales>
+	 */
+	public ArrayList<Sales> readSerializableSales()
+	{
+	    // create the arraylist we will return
+	    ArrayList<Sales> sales = new ArrayList<Sales>();
+	    // create a window to hold the dialog box
+	    Frame f = new Frame();  
+	    //decide from where to read the file
+	    FileDialog foBox = new FileDialog(f,"Reading serialized file", FileDialog.LOAD);
+	    foBox.setVisible(true);
+	    //get the absolute path to the file
+	    String foName = foBox.getFile();
+	    String dirPath = foBox.getDirectory();
+	    File inFile = new File(dirPath + foName);
+	 
+	    ObjectInputStream OIS = null;
+ 
+	    try
+	    {
+	      FileInputStream IS = new FileInputStream(inFile); // create a file input stream for the file
+	      OIS = new ObjectInputStream(IS); // create the object input stream
+	      sales = (ArrayList<Sales>) OIS.readObject(); // note that you can read in the entire object (the array list) at once
+	    }
+	    catch (IOException io)
+	    {
+	      io.printStackTrace();   // great for debugging!
+	      System.out.println("An IO Exception occurred");
+	    }
+	    // note that you can also have a class not found exception.
+	    catch (ClassNotFoundException cnf)
+	    {
+	      cnf.printStackTrace();    // great for debugging!
+	      System.out.println("An IO Exception occurred");
+	    }
+	    finally    // finally always runs no matter what so close the file here!
+	    {
+	    	// close the file. Java is neurotic - it worried "but what if it is already closed?" so needs another try/catch 
+	    	try{
+	    		OIS.close();
+	    	}
+	    	catch (Exception e) {}   // note the {} - means "do nothing".  I wanted it closed anyway.
+	    }
+	    return sales;
+	}
+	/**
+	 * This method will allow the user to import an inventory file that will add the info to an ArrayList
+	 * of the Inventory class. 
+	 * @return  ArrayList <Inventory>
+	 */
+	public ArrayList<Inventory> readSerializableInv()
+	{
+	    // create the arraylist we will return
+	    ArrayList<Inventory> inv = new ArrayList<Inventory>();
+	    // create a window to hold the dialog box
+	    Frame f = new Frame();  
+	    //decide from where to read the file
+	    FileDialog foBox = new FileDialog(f,"Reading serialized file", FileDialog.LOAD);
+	    foBox.setVisible(true);
+	    //get the absolute path to the file
+	    String foName = foBox.getFile();
+	    String dirPath = foBox.getDirectory();
+	    File inFile = new File(dirPath + foName);
+	 
+	    ObjectInputStream OIS = null;
+	 
+	    try
+	    {
+	    	FileInputStream IS = new FileInputStream(inFile); // create a file input stream for the file
+	    	OIS = new ObjectInputStream(IS); // create the object input stream
+	    	inv = (ArrayList<Inventory>) OIS.readObject(); // note that you can read in the entire object (the array list) at once
+	    }
+	    catch (IOException io)
+	    {
+	    	io.printStackTrace();   // great for debugging!
+	    	System.out.println("An IO Exception occurred");
+	    }
+	    // note that you can also have a class not found exception.
+	    catch (ClassNotFoundException cnf)
+	    {
+	    	cnf.printStackTrace();    // great for debugging!
+	    	System.out.println("An IO Exception occurred");
+	    }
+	    finally    // finally always runs no matter what so close the file here!
+	    {
+	    	// close the file. Java is neurotic - it worried "but what if it is already closed?" so needs another try/catch 
+	    	try
+	    	{
+	    		OIS.close();
+	    	}
+	    	catch (Exception e) {}   // note the {} - means "do nothing".  I wanted it closed anyway.
+	    }
+	    return inv;
+	}
+} // end of class
+
+/**
+ * This class allows someone to export byte files of data on customer. inventory, and sales information.
+ * The information is organized into three methods.  A user can choose which one they want to use.
+ * 
+ * @author A.Bunk 7.13.2014
+ */
+
+public class ExportMenu implements Serializable 
+{
+	/**
+	 * This is the base menu the user sees when they want to export files.
+	 * @param cust
+	 * @param sales
+	 * @param inv
+	 */
+	public void menu (ArrayList<Customer> cust, ArrayList<Sales> sales, ArrayList<Inventory> inv)
+	{
+		Scanner scan = new Scanner (System.in);
+		int decision = 0;
+		try 
+		{
+			while (decision != 4)
+			{
+				System.out.println("Please select a file type to export:");
+				System.out.println("1. Customer Information\n" + "2. Sales Information\n" + "3. Inventory Information\n" + "4. Exit");
+				decision = scan.nextInt();
+				scan.nextLine();
+				if (decision == 1)
+				{
+					System.out.println("Please choose a location to export the files: ");
+					writeSerializableCust(cust);
+				}
+				else if (decision == 2)
+				{
+					System.out.println("Please choose a location to export the files: ");
+					writeSerializableSales(sales);
+				}
+				else if (decision == 3)
+				{
+					System.out.println("Please choose a location to export the files: ");
+					writeSerializableInv(inv);
+				}
+				else if (decision == 4)
+					System.out.println("Thank you!");
+				else if (decision > 4)
+					System.out.println("That is not a valid choice. Please try again!");
+				else if (decision < 1)
+					System.out.println("That is not a valid choice. Please try again!");
+			}
+		}
+		catch (InputMismatchException e)
+		{
+			System.out.println ("That is not a valid choice. Please try again!");  
+			scan.nextLine();
+		}  
+	}
+	
+	/**
+	 * Allows the user to export customer type files.
+	 * @param cust
+	 */
+	public void writeSerializableCust(ArrayList<Customer> cust)
+	{
+		{
+			// create the frame for the dialog box
+			Frame f = new Frame ();
+			// decide where to save the file 
+			FileDialog foBox = new FileDialog(f, "Saving Customer file", FileDialog.SAVE);
+			foBox.setVisible(true);
+			// we need to get the path where the file will be stored.
+			// the user will pick one from the dialog box
+			// the combination of the directory name plus the file name is the absolute path
+			String foName = foBox.getFile();
+			String dirPath = foBox.getDirectory();
+			// create a File instance for that absolute path
+			File outFile = new File (dirPath + foName);
+			// create a PrintWriter
+			FileOutputStream OS = null;
+			ObjectOutputStream OOS = null;
+			
+			try
+			{
+				// create the FileOutputStream object
+				OS = new FileOutputStream(outFile);
+				// create the ObjectOutputStream object
+				OOS = new ObjectOutputStream(OS);
+				// write out the array list
+				OOS.writeObject(cust);	
+			}
+			// catch any IOExceptions that occur
+			catch (IOException io) 
+			{
+				io.printStackTrace(); // this shows if there are any errors
+				System.out.println("An IO Exception occurred");
+			}
+			
+			finally // this always runs no matter what so close the file here
+			{ // close the file.
+				try 
+				{
+					OOS.close();
+				}
+				catch (Exception e)
+				{}
+			}
+		}
+	}
+	
+	/**
+	 * Allows the user to export Sales class files.
+	 * @param sales
+	 */
+	public void writeSerializableSales(ArrayList<Sales> sales)
+	{
+		{
+			// create the frame for the dialog box
+			Frame f = new Frame ();
+			// decide where to save the file 
+			FileDialog foBox = new FileDialog(f, "Saving Sales file", FileDialog.SAVE);
+			foBox.setVisible(true);
+			// we need to get the path where the file will be stored.
+			// the user will pick one from the dialog box
+			// the combination of the directory name plus the file name is the absolute path
+			String foName = foBox.getFile();
+			String dirPath = foBox.getDirectory();
+			// create a File instance for that absolute path
+			File outFile = new File (dirPath + foName);
+			// create a PrintWriter
+			FileOutputStream OS = null;
+			ObjectOutputStream OOS = null;
+			
+			try
+			{
+				// create the FileOutputStream object
+				OS = new FileOutputStream(outFile);
+				// create the ObjectOutputStream object
+				OOS = new ObjectOutputStream(OS);
+				// write out the array list
+				OOS.writeObject(sales);	
+			}
+			// catch any IOExceptions that occur
+			catch (IOException io) 
+			{
+				io.printStackTrace(); // this shows if there are any errors
+				System.out.println("An IO Exception occurred");
+			}
+			
+			finally // this always runs no matter what so close the file here
+			{ // close the file.
+				try 
+				{
+					OOS.close();
+				}
+				catch (Exception e)
+				{}
+			}
+		}
+	}
+	
+	/**
+	 * Allows the user to export Inventory class files.
+	 * @param inv
+	 */
+	public void writeSerializableInv(ArrayList<Inventory> inv)
+	{
+		{
+			// create the frame for the dialog box
+			Frame f = new Frame ();
+			// decide where to save the file 
+			FileDialog foBox = new FileDialog(f, "Saving Inventory file", FileDialog.SAVE);
+			foBox.setVisible(true);
+			// we need to get the path where the file will be stored.
+			// the user will pick one from the dialog box
+			// the combination of the directory name plus the file name is the absolute path
+			String foName = foBox.getFile();
+			String dirPath = foBox.getDirectory();
+			// create a File instance for that absolute path
+			File outFile = new File (dirPath + foName);
+			// create a PrintWriter
+			FileOutputStream OS = null;
+			ObjectOutputStream OOS = null;
+			
+			try
+			{
+				// create the FileOutputStream object
+				OS = new FileOutputStream(outFile);
+				// create the ObjectOutputStream object
+				OOS = new ObjectOutputStream(OS);
+				// write out the array list
+				OOS.writeObject(inv);	
+			}
+			// catch any IOExceptions that occur
+			catch (IOException io) 
+			{
+				io.printStackTrace(); // this shows if there are any errors
+				System.out.println("An IO Exception occurred");
+			}
+			
+			finally // this always runs no matter what so close the file here
+			{ // close the file.
+				try 
+				{
+					OOS.close();
+				}
+				catch (Exception e)
+				{}
+			}
+		}
+	}
+} // end of class
+
+
+/**
+ * The Day class allows for Day objects to be created as well as methods that allow a user to set or manipulate the date.
+ * Created by Dr.Wolff.
+ */
+
+
+/**
+ * Class used for simple date functions 
+ */
+public class Day implements Cloneable, Serializable
+{ 
+	/**
+	*  The numeric day (1-31)
+	*/
+	private int day;
+	/**
+	*  The numeric month 1 = Jan 2 = Feb etc.
+	*/
+   	private int month;
+   	/**
+	*  The numeric year ex 2007
+	*/
+   	private int year;
+
+
+    /**
+    *  Constructs today's date
+    */  
+    
+   public Day()
+   {  GregorianCalendar todaysDate 
+         = new GregorianCalendar();
+      year = todaysDate.get(Calendar.YEAR);
+      month = todaysDate.get(Calendar.MONTH) + 1;
+      day = todaysDate.get(Calendar.DAY_OF_MONTH);
+   }
+
+
+   /**
+    * Constructs a specific date
+    * @param yyyy year (full year, e.g., 1996, 
+    * <i>not</i> starting from 1900)
+    * @param m month
+    * @param d day
+    * @exception IllegalArgumentException if yyyy m d not a 
+    * valid date
+    */
+      
+   public Day(int yyyy, int m, int d) 
+   {  year = yyyy;
+      month = m;
+      day = d;
+      if (!isValid()) 
+         throw new IllegalArgumentException();
+   }
+   
+   /**
+    * Advances this day by n days. For example. 
+    * d.advance(30) adds thirdy days to d
+    * @param n the number of days by which to change this
+    * day (can be < 0)
+    */   
+   public void advance(int n)
+   {  fromJulian(toJulian() + n);
+   }
+
+
+   /**
+ * Gets the day of the month
+ * @return   the day of the month (1...31)
+ * @uml.property  name="day"
+ */
+   public int getDay()
+   {  
+	   return day;
+    }
+
+
+   /**
+ * Used to return the integer month
+ * @return   the month (1...12)
+ * @uml.property  name="month"
+ */
+   public int getMonth()
+   { 
+	   return month;
+   }
+   
+   /**
+    * Used to return the String name of the month
+   * @return  the month "January", "February", etc.
+  */
+   public String getMonthF()
+   {
+   	int mon = getMonth();
+   	
+   	if (mon==1)
+   		return "January";
+   	
+   	else if (mon==2)
+   		return "February";
+   		
+   	else if (mon==3)
+   		return "March";
+   	
+   	else if (mon==4)
+   		return "April";
+   		
+   	else if (mon==5)
+   		return "May";
+   	
+   	else if (mon==6)
+   		return "June";
+   		
+   	else if (mon==7)
+   		return "July";
+   	
+   	else if (mon==8)
+   		return "August";
+   		
+   	else if (mon==9)
+   		return "September";
+   		
+   	else if (mon==10)
+   		return "October";
+   		
+   	else if (mon==11)
+   		return "November";
+   		
+   	else if (mon==12)
+   		return "December";
+   		
+   	else
+   		return "";
+   			
+   	
+   	}
+
+
+   /**
+ * Used to return the integer year
+ * @return   the year (counting from 0, <i>not</i> from 1900)
+ * @uml.property  name="year"
+ */
+    public int getYear()
+     { 
+    	return year;
+     }
+   
+   /**
+    * Gets the weekday
+    * @return the weekday (0 = Sunday, 1 = Monday, ..., 
+    * 6 = Saturday)
+    */
+    
+   public int weekday() 
+   { 
+	   return (toJulian() + 1)% 7; 
+   }
+   
+   /**
+    * Gets the weekday
+    * @return the weekday name as a String instead of number
+    * 6 = Saturday)
+    */
+   public String weekdayF()
+   {
+   	int when = weekday();
+   	if (when == 0)
+   		return "Sunday";
+   		
+   	else if (when == 1)
+   		return "Monday";
+   		
+   	else if (when == 2)
+   	return "Tuesday";	
+   	
+   	else if (when ==3)
+   	return "Wednesday";
+   	
+   	else if (when ==4)
+   	return "Thursday";
+   	
+   	else if (when ==5)
+   	return "Friday";
+   	
+   	else if (when ==6)
+   	return "Saturday";
+   	
+   	else
+   		return "";
+   	   	
+   }	
+   
+   /**
+    * The number of days between this and day parameter 
+    * @param b any date
+    * @return the number of days between this and day parameter 
+    * and b (> 0 if this day comes after b)
+    */
+   
+   public int daysBetween(Day b)
+   {  return toJulian() - b.toJulian();
+   }
+
+
+   /**
+    * A string representation of the date in the format  mm/dd/yyyy
+    * @return a string representation of the date
+    */
+   
+   public String toString()
+   {  return month + "/" + day + "/" + year; 
+   }
+   
+   /**
+    * A string representation of the date in the format  Monday, January 23, 2008
+    * @return a string representation of the date
+    */
+   public String toStringF()
+   {
+   	return weekdayF() + ", " + getMonthF() + " " + getDay() + ", " + getYear();
+   }
+
+
+   /**
+    * Makes a bitwise copy of a Day object
+    * @return a bitwise copy of a Day object
+    */
+   
+   public Object clone()
+   {  try
+      {  return super.clone();
+      } catch (CloneNotSupportedException e)
+      {  // this shouldn't happen, since we are Cloneable
+         return null;
+      }   
+   }
+
+
+   /**
+    * Computes the number of days between two dates
+    * @return true iff this is a valid date
+    */
+    
+   private boolean isValid()
+   {  Day t = new Day();
+      t.fromJulian(this.toJulian());
+      return t.day == day && t.month == month 
+         && t.year == year;
+   }
+
+
+   /**
+    * @return The Julian day number that begins at noon of 
+    * this day
+    * Positive year signifies A.D., negative year B.C. 
+    * Remember that the year after 1 B.C. was 1 A.D.
+    *
+    * A convenient reference point is that May 23, 1968 noon
+    * is Julian day 2440000.
+    *
+    * Julian day 0 is a Monday.
+    *
+    * This algorithm is from Press et al., Numerical Recipes
+    * in C, 2nd ed., Cambridge University Press 1992
+    */
+   private int toJulian()
+   
+   {  int jy = year;
+      if (year < 0) jy++;
+      int jm = month;
+      if (month > 2) jm++;
+      else
+      {  jy--;
+         jm += 13;
+      }
+      int jul = (int) (java.lang.Math.floor(365.25 * jy) 
+      + java.lang.Math.floor(30.6001*jm) + day + 1720995.0);
+
+
+      int IGREG = 15 + 31*(10+12*1582);
+         // Gregorian Calendar adopted Oct. 15, 1582
+
+
+      if (day + 31 * (month + 12 * year) >= IGREG)
+         // change over to Gregorian calendar
+      {  int ja = (int)(0.01 * jy);
+         jul += 2 - ja + (int)(0.25 * ja);
+      }
+      return jul;
+   }
+
+
+   /**
+    * Converts a Julian day to a calendar date
+    * @param j  the Julian date
+    * This algorithm is from Press et al., Numerical Recipes
+    * in C, 2nd ed., Cambridge University Press 1992
+    */
+   private void fromJulian(int j)
+   
+   {  int ja = j;
+   
+      int JGREG = 2299161;
+         /* the Julian date of the adoption of the Gregorian
+            calendar    
+         */   
+
+
+      if (j >= JGREG)
+      /* cross-over to Gregorian Calendar produces this 
+         correction
+      */   
+      {  int jalpha = (int)(((float)(j - 1867216) - 0.25) 
+             / 36524.25);
+         ja += 1 + jalpha - (int)(0.25 * jalpha);
+      }
+      int jb = ja + 1524;
+      int jc = (int)(6680.0 + ((float)(jb-2439870) - 122.1)
+          /365.25);
+      int jd = (int)(365 * jc + (0.25 * jc));
+      int je = (int)((jb - jd)/30.6001);
+      day = jb - jd - (int)(30.6001 * je);
+      month = je - 1;
+      if (month > 12) month -= 12;
+      year = jc - 4715;
+      if (month > 2) --year;
+      if (year <= 0) --year;
+   }
+
+   /**
+    * Determines if two Day objects represent the same date.
+    * @param d any valid Day object
+    * @return true if this Day is the same date as d, else false
+    */
+   public boolean equals(Day d)
+   {
+		if (this.toJulian() == d.toJulian())
+			return true;
+		else 
+			return false;	
+   }
+   
+   /**
+    * Determines if one Day object comes before another.
+    * @param d any valid Day object
+    * @return true if this Day comes before d, else false
+    */
+   public boolean comesBefore(Day d)
+   {
+	   	if (this.toJulian() < d.toJulian())
+			return true;
+		else
+			return false;
+   }
+   
+   /**
+    * Determines if one Day object comes after another.
+    * @param d any valid Day object
+    * @return true if this Day comes after d, else false
+    */
+   public boolean comesAfter(Day d)
+   {
+	   	if (this.toJulian() > d.toJulian())
+			return true;
+		else
+			return false;
+   }
+}
+
+/**
+ * The Customer class is the base class for a Customer type object. 
+ * 
+ */
+
+
+public class Customer implements Serializable 
+{
+ 
+ 
+	private int custNum; // the id # for the customer
+	private int discountPercent; // the discount the customer receives
+	private String first; // first name
+	private String last; // last name
+	private String type; // whether retail or wholesale
+ 
+	public static int nextNum = 100;
+ 
+ 
+	public Customer()
+	{
+		custNum = nextNum;
+		nextNum++;
+	}
+ 
+ 
+	public Customer(String l, String f, String t, int percent)
+	{
+		last = l;
+		first = f;
+		type = t;
+		discountPercent = percent;
+		custNum = nextNum;
+		nextNum++;
+	}
+ 
+ 
+	public String toString()
+	{
+		double discountDecimal = discountPercent / 100.00;
+ 
+		return last + ", " + first + " (#" + custNum + "/" + type + "," +" Discount: "  + discountDecimal + ")"; 
+	}
+ 
+	public int getCustNum() {
+		return custNum;
+	}
+
+ 
+	public void setCustNum(int custNum) {
+		this.custNum = custNum;
+	}
+
+ 
+	public int getDiscountPercent() {
+		return discountPercent;
+	}
+
+ 
+	public void setDiscountPercent(int discountPercent) {
+		this.discountPercent = discountPercent;
+	}
+
+ 
+	public String getFirst() {
+		return first;
+	}
+
+ 
+	public void setFirst(String first) {
+		this.first = first;
+	}
+
+ 
+	public String getLast() {
+		return last;
+	}
+
+ 
+	public void setLast(String last) {
+		this.last = last;
+	}
+
+ 
+	public String getType() {
+		return type;
+	}
+
+ 
+	public void setType(String type) {
+		this.type = type;
+	}
+
+} // end of class
+
+
+/**
+ * This class contains methods for adding, deleting, and removing customers.  I organized those methods here since it allowed the RunNursery class to be a bit less cluttered
+ * and all of these methods relate to the Customer class.
+ * @author A.Bunk 7.16.2014
+ */
+
+public class CustMenu 
+{
+	/**
+	 * This method allows the user to add a customer to the cust ArrayList
+	 * @param cust
+	 */
+	public void addCust (ArrayList<Customer> cust)
+	{
+		Customer c = new Customer(); // new Customer object
+		boolean carryOn = true;  // used to see if we set the customer's type as either Retail or Wholesale
+		boolean keepGoing = false; // used to see if we set the customer's discount code
+		Scanner scan = new Scanner (System.in);
+		int choice = 0;
+		while (choice == 0)
+		{
+			try 
+			{
+				System.out.println("Please enter the customer's last name: ");
+				String last = scan.nextLine();
+				c.setLast(last);
+			      
+				System.out.println("Please enter the customer's first name: ");
+				String first = scan.nextLine();
+				c.setFirst(first);
+			
+		
+				System.out.println("Is the name correct? " + c.getLast() + ", " + c.getFirst() +
+						"\nPlease put 1 for Yes or 2 for No:");
+				choice = scan.nextInt();
+				if (choice == 2)
+				{
+					choice = 0;
+					scan.nextLine();
+					continue;
+				}
+				if (choice > 2 || choice < 1)
+					choice = 0;
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid choice. Please try again!");  
+				scan.nextLine();
+			} 
+		} // end of while loop
+		for (int i = 0; i < cust.size(); ++i)
+		{
+			// compare input with customer's last name 
+			if (c.getLast().toLowerCase().equals(cust.get(i).getLast().toLowerCase()))   
+			{
+				if (c.getFirst().toLowerCase().equals(cust.get(i).getFirst().toLowerCase()))
+				{
+					System.out.println ("This customer is already in the system.\n" + cust.get(i).toString());   
+					carryOn = false;
+				}
+			}
+		} 
+ 
+
+		while (carryOn == true)
+		{  
+			try 
+			{
+				System.out.println ("Please enter the customer type: \n1. for Retail\n2. for Wholesale");
+				int type = scan.nextInt();
+				if (type == 1)
+				{
+					String retail = "Retail";
+					c.setType(retail);
+					c.setDiscountPercent(0);
+					cust.add(c);
+					keepGoing = false;
+					carryOn = false;
+					System.out.println(c.toString() + "\nHas been added to the Customer list.");
+				}
+				else if (type == 2)
+				{
+					String whole = "Wholesale";
+					c.setType(whole);
+					keepGoing = true;
+					carryOn = false;
+				}
+				else if (type > 2)
+				{
+					System.out.println ("That is not a valid choice. Please try again!");  
+					scan.nextLine();
+				}  
+				else if (type < 1)
+				{
+					System.out.println ("That is not a valid choice. Please try again!");  
+					scan.nextLine();
+				}  
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid choice. Please try again!");  
+				scan.nextLine();
+			}  
+		}
+  
+		while (keepGoing == true)
+		{
+			try 
+			{
+				System.out.println ("Please enter the customer's discount % (enter a whole number):");
+				int discount = scan.nextInt();
+				if (discount < 0 || discount > 50)
+				{
+					System.out.println ("That is not a valid discount amount. Please try again.");
+					continue;
+				}
+				c.setDiscountPercent(discount);
+				cust.add(c);
+				keepGoing = false;  
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid entry. Please try again!");  
+				scan.nextLine();
+			}  
+		}
+	} // end of method
+	
+	/**
+	 * This method sorts the customer's by their last name and then their first name.
+	 * @param c
+	 */
+	public void compareCust(ArrayList<Customer> c)
+	{
+		for (int i = c.size() - 1 ; i > 0; --i)
+		{
+			for (int j = 0; j < i; ++j)
+			{
+				// need to get the first customer's name
+				Customer first = c.get(j);
+				// get second customers's name
+				Customer second = c.get(j+1);
+				// now get string one and string two
+				String one = first.getLast();
+				String two = second.getLast();
+				// if statement with the compare < 0
+				if (two.compareTo(one) < 0)
+				{
+					// make sure to have within the loops the compare and set each one to the opposites place in the list
+					c.set(j, second);
+					c.set(j+1, first);
+        
+				}
+				
+				for (int k = 0; k < j; ++k)
+				{
+					Customer custOne = c.get(k);
+					Customer custTwo = c.get(k+1);
+					String nameFirst = custOne.getFirst();
+					String nameTwo = custTwo.getFirst();
+					if (nameTwo.compareTo(nameFirst) < 0)
+					{
+						c.set(k, custOne);
+						c.set(k+1, custTwo);
+						
+					}
+				}
+			}
+		}
+	} // end of compareCust
+	
+
+	/**
+	 * This method allows the user to delete a customer from the cust ArrayList
+	 * @param cust
+	 */
+	public void deleteCust (ArrayList <Customer> cust)
+	{
+		// first we need to print out all the customer ids and add try and catch statements as well as a while loop
+		Scanner scan = new Scanner (System.in);
+		int choice = 0; // used to record the customer's choice
+		while (choice != 3)
+		{
+			try
+			{
+				// the menu should have three options, check customer ids, delete a customer, and exit.
+				System.out.println ("Please choose a choice from below: ");
+				System.out.println ("1. Check Customer #'s\n2. Delete a Customer\n3. Exit");
+				choice = scan.nextInt();
+				// then we need to prompt the user to choose a customer to delete then have the program del
+				if (choice == 1)
+				{
+					for (Customer c : cust)
+						System.out.println(c.toString());
+				}
+				// allow the user to choose the cust # to delete, use an if statement to compare the ID numbers
+				if (choice == 2)
+				{
+					int custId = 0;
+					while (custId != -999)
+					{
+						try 
+						{
+							System.out.println ("Please input the Customer # of the record you want to delete (or -999 to exit): ");
+							custId = scan.nextInt();
+							boolean found = false;
+							// if they choose a number that doesn't match a customer let the user know the cust doesn't exist and to try again
+							if (custId <= 0 && custId != -999)
+							{
+								System.out.println ("That is not a valid choice. Please try again!");  
+								continue;
+							}
+							else if (custId > 0 && custId < 100)
+							{
+								System.out.println ("That is not a valid choice. Please try again!");  
+								continue;
+							}
+							// allow them a way to get out of the loop manually
+							else if (custId == -999)
+							{
+								continue;
+							}
+							for (int i = 0; i < cust.size(); ++i)
+							{
+								if (custId == cust.get(i).getCustNum())
+								{
+									System.out.println (cust.get(i).getFirst() + " " + cust.get(i).getLast() + " has been removed from the system.\n");
+									cust.remove(i);
+									found = true;
+									break;
+								}
+							}
+							if (found == false)
+							{
+								System.out.println ("The Customer # you provided was not found.  Please try again!");
+								continue;
+							}
+							
+                
+						}
+						catch (InputMismatchException e)
+						{
+							System.out.println ("That is not a valid choice. Please try again!");  
+							scan.nextLine();
+						} 
+					}
+				}
+				if (choice ==  3)
+					continue;
+				if (choice > 3 || choice < 1)
+				{
+					System.out.println ("That is not a valid choice. Please try again!");
+					continue;
+				}
+					
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid choice. Please try again!");  
+				scan.nextLine();
+			} 
+		} // end of try statement
+	} // end of deleteCust
+} // end of class
+
+
+/**
+ * This is the base class for all the different objects the Nursery sells, including plants, trees, and bulk products.  
+ */
+
+public abstract class Inventory implements Serializable 
+{
+ 
+ 
+	protected double cost; // the price the Nursery pays for this item.
+	protected int invNum; // the Item # for this item
+	protected String itemName; // the name of the item
+	protected int numInStock; // the amount that is in stock
+	protected double salesPrice; // the price the Nursery sells the item for
+		  
+	protected static int nextNum = 1000;
+		 
+	private NumberFormat currency = NumberFormat.getCurrencyInstance();
+	 
+	public Inventory(double c, String i, int nIS, double p)
+	{
+		cost = c;
+		itemName = i;
+		numInStock = nIS;
+		salesPrice = p;
+ 
+		invNum = nextNum;
+		nextNum++;
+	}
+ 
+ 
+	public Inventory()
+	{
+		invNum = nextNum;
+		nextNum++;
+	}
+ 
+	public String toString()
+	{
+		double totalValue = cost * numInStock;
+		 
+		return "There are " + numInStock + " of " + itemName + " (Item Number:  " + invNum 
+				+ ") in stock with a cost of " + currency.format(cost) + " each.  The sales price of the item is " + currency.format(salesPrice) +". The total value in inventory is "
+				+ currency.format(totalValue) + "."; 
+	}
+ 
+	public String toStringCust() 
+	{
+		return  itemName + " (Item Number:  " + invNum + ") which cost " +
+				currency.format(cost) + " each. ";
+ 
+	}
+
+
+ 
+	public double getCost() {
+		return cost;
+	}
+
+ 
+	public void setCost(double cost) {
+		this.cost = cost;
+	}
+
+ 
+	public int getInvNum() {
+		return invNum;
+	}
+
+ 
+	public void setInvNum(int invNum) {
+		this.invNum = invNum;
+	}
+
+ 
+	public String getItemName() {
+		return itemName;
+	}
+
+ 
+	public void setItemName(String itemName) {
+		this.itemName = itemName;
+	}
+
+ 
+	public int getNumInStock() {
+	return numInStock;
+	}
+
+ 
+	public void setNumInStock(int numInStock) {
+		this.numInStock = numInStock;
+	}
+
+ 
+	public double getSalesPrice() {
+		return salesPrice;
+	}
+
+ 
+	public void setSalesPrice(double salesPrice) {
+		this.salesPrice = salesPrice;
+	}
+
+}  // end of class
+
+/**
+ * This class extends the inventory class and describes Bulk Products
+ * 
+ */
+
+
+public class BulkProducts extends Inventory 
+{
+ 
+	private double weight; // weight of the product in pounds
+ 
+	public BulkProducts()
+	{
+		super();
+		weight = 0;
+	}
+ 
+	public BulkProducts(double c, String i, int nIS, double p, double w)
+	{
+		super(c, i, nIS, p);
+		weight = w;
+	}
+
+	public double getWeight() {
+		return weight;
+	}
+
+ 	public void setWeight(double weight) {
+		this.weight = weight;
+	}
+
+} // end of class
+
+/**
+ * The Perennials class describes flower objects and extends the plants class which extends the inventory class.  
+ * This is a concrete class and objects of this class will be stored in the Inventory ArrayList.
+ */
+
+public class Perennials extends Plants 
+{
+	 
+	 
+	private String flowerColor; // color of the flower
+	 
+	 
+	public Perennials()
+	{
+		super();
+	}
+	 
+	public Perennials(double c, String i, int nIS, double p, String color)
+	{
+		super(c, i, nIS, p);
+		flowerColor = color;
+	}
+	
+	 
+	public String getFlowerColor() {
+		return flowerColor;
+	}
+	
+	 
+	public void setFlowerColor(String flowerColor) {
+		this.flowerColor = flowerColor;
+	}
+
+} // end of class
+
+/**
+ * This is abstract class that is extended in the Perennials and Trees classes.   
+ */
+
+public abstract class Plants extends Inventory {
+
+	public Plants()
+	{
+		super();
+	}
+	
+	public Plants(double c, String i, int nIS, double p)
+	{
+		super(c, i, nIS, p);
+	}
+} // end of class
+
+
+/**
+ * Extends Plants which extends the Inventory class.  This class is a concrete class.  
+ */
+
+public class Trees extends Plants  
+{
+	 
+	private boolean evergreen;
+	 
+	 
+	public Trees()
+	{
+		super();
+	}
+	 
+	public Trees(double c, String i, int nIS, double p, boolean ever)
+	{
+		  super(c, i, nIS, p);
+		  evergreen = ever;
+	}
+	
+	 
+	public boolean isEvergreen() {
+		return evergreen;
+	}
+	
+	 
+	public void setEvergreen(boolean evergreen) {
+		this.evergreen = evergreen;
+	}
+	
+}  // end of class
+
+/**
+ * This class was setup to hold the different Sales related analytical methods.  Such as sales figures and other information.
+ * @author A.Bunk 7.18.2014
+ */
+
+public class Analytics 
+{
+	Scanner scan = new Scanner(System.in);
+	NumberFormat currency = NumberFormat.getCurrencyInstance();
+	/**
+	 * This method will find the sales amount and all the sales for a given item in the Inventory.  It will then describe the sales and profit amounts by days.
+	 * This method requires Inventory and Sales ArrayLists
+	 * @param i
+	 * @param s
+	 */
+	public void findSales (ArrayList<Inventory> inv, ArrayList<Sales> s)
+	{
+		// set up choice int we will use for the Item #, item is used to hold the inv item #
+		int item = 0;
+		int choice = 0;
+		boolean itemFound = false; // used to determine if the item has been found
+		int day = 0; // used to figure out how many days the user wants to use
+		ArrayList<Sales> itemSales = new ArrayList<Sales>(); 
+		// print out all the inventory items
+		for (Inventory i : inv)
+			System.out.println(i.toString());
+		while (itemFound == false)
+		{
+			try
+			{
+				// get the user to input the Item # they want info for
+				System.out.println("\nPlease enter the Item # of the item you would like sales information for: (or enter -999 to exit)");
+				choice = scan.nextInt();
+				// set the way to exit the loop
+				if (choice == -999)
+				{
+					itemFound = true;
+					continue;
+				}
+				// set the loop to see if the Item # exists and the boolean in case no item is found
+				for (int j = 0; j < inv.size() ; ++j)
+				{
+					// set up an if loop to see if choice is equal to an Inventory #
+					if (choice == inv.get(j).getInvNum())
+					{
+						item = inv.get(j).getInvNum();
+						// now print out each sale that corresponds with that Inv #
+						for (int k = 0; k < s.size(); ++k)
+						{
+							// now set up an if statement to match the sale with the Item #. If they match add that sale to the itemSales List that we will sort
+							if (choice == s.get(k).getInv().getInvNum())
+								itemSales.add(s.get(k));
+						}
+						itemFound = true;
+					}	
+				}	
+				if (itemFound == false)
+					System.out.println("Sorry, that item could not be found. Please try again!");
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid choice. Please try again!");  
+				scan.nextLine();
+			}
+			
+		}
+		
+		if (choice != -999)
+		{
+			// need to add in an if  else statement 
+			if (itemSales.size() == 0)
+			{
+				System.out.println("No sales could be found for that item.");
+				System.out.println ("You may want to think about discounting this item so as to make space for better selling items.");
+				day = -999; 
+			}
+			else 
+			{
+				sortSales(itemSales);
+				for (Sales thing : itemSales)
+					System.out.println(thing.toString());
+				// need to print the netSales and netProfit totals for this item
+				System.out.println ("\nThe net sales for Item #" + item + " are: " + currency.format(netSales(itemSales)));
+				System.out.println ("The net profits for Item #" + item + " are: " + currency.format(netProfit(itemSales)));
+			}
+		}	
+		// now allow the user to input the amount of days they want to check sales for
+		// int to use for days
+		while (day != -999)
+		{
+			try
+			{
+				System.out.println("\nPlease enter the number of days you would like to check sales figures for: (or enter -999 to exit)");
+				day = scan.nextInt();
+				if (day == -999)
+					continue;
+				if (day < 1 && day != -999)
+				{
+					System.out.println("That is not a valid # of days please try again.");
+					continue;
+				}
+				if (choice >= 1)
+				{
+					System.out.println("The " + day + " day sales for Item #" + item + " are:" + currency.format(salesByDate(day, itemSales)));
+					System.out.println("The " + day + " day profits for Item #" + item + " are:" + currency.format(profitByDate(day, itemSales)));
+					if (salesByDate(180, itemSales) == 0)
+						System.out.println ("You may want to think about discounting this item so as to make space for better selling items.");
+					if (salesByDate(180, itemSales) >= 1000)
+						System.out.println("This item is selling well and you may want to get more of this item.");
+				}
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid choice. Please try again!");  
+				scan.nextLine();
+			}
+			
+		}
+	} // end of method findSales
+	
+	/**
+	 * This method will sort an ArrayList of Sales by the date of the sale.
+	 * @param s
+	 */
+	public void sortSales (ArrayList<Sales> s)
+	{
+		for (int i = s.size() - 1 ; i > 0; --i)
+		{
+			for (int j = 0; j < i; ++j)
+			{
+				// need to get the first sales item 
+				Sales first = s.get(j);
+				// get second inv item
+				Sales second = s.get(j+1);
+				// now get string one and string two
+				Day one = first.getDateSold();
+				Day two = second.getDateSold();
+				// if statement with the compare > 0
+				if (two.comesBefore(one))
+				{
+					// make sure to have within the loops the compare and set each one to the opposites place in the list
+					s.set(j, second);
+					s.set(j+1, first);
+				}
+			}
+		}
+	} // end of sortSales method
+	
+	/**
+	 * This method provides the netSales for a list of sales (this would be the total revenue before costs and sales tax are taken out).
+	 * @param s
+	 * @return double showing the netSales
+	 */
+	public double netSales (ArrayList<Sales> s)
+	{
+		double total = 0;
+		// set up a loop to iterate through the list and then add to the total with each sale's netSale method
+		for (int i = 0; i < s.size(); ++i)
+			total = s.get(i).netSales() + total;
+		return total;
+	}
+	
+	/**
+	 * This method provides the netProfit of a list of sales (this would be the profits after deducting sales tax and costs).
+	 * @param s
+	 * @return double showing the netProfit
+	 */
+	public double netProfit (ArrayList<Sales> s)
+	{
+		double total = 0;
+		// set up a loop to iterate through the list and then add to the total with each sale's netSale method
+		for (int i = 0; i < s.size(); ++i)
+			total = s.get(i).netProfit() + total;
+		return total;
+	}
+	
+	
+	/**
+	 * This method will determine the net sales of an item over a certain period of time.
+	 * @param d
+	 * @return amount of net sales based on the amount of time
+	 */
+	public double salesByDate (int d, ArrayList<Sales> s)
+	{
+		
+		// we need to get all the sales that occurred over the d # of days
+		Day today = new Day();
+		Day before = new Day();
+		// make it so we set before to the # of days specified by the user
+		before.advance(-d);
+		double total = 0;
+		for (int i = 0; i < s.size(); ++i)
+		{
+			// check to see if the sale occurred with the d # of days if it did add that sale netSales to the total
+			if (s.get(i).getDateSold().comesBefore(today) && s.get(i).getDateSold().comesAfter(before))
+				total = s.get(i).netSales() + total;	
+		}
+		return total;
+		
+	}
+	
+	/**
+	 * This method will determine the net profit of an item over a certain period of time.
+	 * @param d
+	 * @return amount of net profit based on the amount of time
+	 */
+	public double profitByDate (int d, ArrayList<Sales> s)
+	{
+		// we need to get all the sales that occurred over the d # of days
+		Day today = new Day();
+		Day before = new Day();
+		// make it so we set before to the # of days specified by the user
+		before.advance(-d);
+		double total = 0;
+		for (int i = 0; i < s.size(); ++i)
+		{
+			// check to see if the sale occurred with the d # of days if it did add that sale netSales to the total
+			if (s.get(i).getDateSold().comesBefore(today) && s.get(i).getDateSold().comesAfter(before))
+				total = s.get(i).netProfit() + total;	
+		}
+		return total;
+		
+	}
+	
+	
+} // end of class Analytics
+
+/**
+ * This class runs all the methods related to the Inventory menu items or class.  Such as add, delete, or edit inventory, and sales figures.  
+ * As a number of methods dealt with the Inventory Class I felt like it was more convenient to put everything in one class.
+ * @author A.Bunk 7.18.2014
+ */
+
+public class InventoryMenu 
+{
+	Scanner scan = new Scanner (System.in);
+	NumberFormat currency = NumberFormat.getCurrencyInstance();
+	/**
+	 * This is the main inventory menu.
+	 * @param inv
+	 */
+	public void invMenu (ArrayList<Inventory> inv)
+	{
+		// add in a scanner
+		// need a sub-menu here (so while loop with try and catch)
+		int choice = 0;
+		while (choice != -999)
+		{
+			try
+			{
+				System.out.println ("Inventory Menu: \n" + "1. Add a new item to the inventory\n2. Edit a current item in the inventory\n3. Delete an item in Inventory\n4. Exit");
+				choice = scan.nextInt();
+				
+				if (choice == 1)
+					typeMenu(inv);// do the method related to adding an inventory item
+				else if (choice == 2)
+					editInv(inv);
+				// delete the inventory
+				else if (choice == 3)
+					deleteInv(inv);
+				// exit the loop
+				else if (choice == 4)
+					choice = -999;
+				// in case user puts in a number higher or lower than our choices
+				else if (choice > 4 || choice < 1)
+				{
+					System.out.println("That is not a valid choice. Please try again!");
+					choice = 0;
+				}
+				
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid choice. Please try again!");  
+				scan.nextLine();
+			}
+		
+		}
+		
+		// If the user chooses 2. then it should print all items in inventory and request the user to choose an item 
+		// based on the item's id.  Once that has been chosen then the user should be given a sub-menu on what they want to edit 
+		// A. Cost of Item, B. Price Sold At C. Exit then each of those items should be coded to their specific needs.
+		//
+	} // end of editInv method
+	
+	/**
+	 * This is the menu a user will see when they choose to add a new item to the Inventory.
+	 * @param inv
+	 */
+	public void typeMenu (ArrayList<Inventory> inv)
+	{
+		// For 1. you first need to ask the user what type of item it is, Tree, Perennial, Bulk Product
+		// Then user needs to input info for the specific class of product they want, then add it to the inventory
+		int type = 0;
+		while (type !=-999)
+		{
+			try
+			{
+				System.out.println ("Please choose an item type to add to the inventory: ");
+				System.out.println ("1. Tree\n2. Perennial\n3. Bulk Product\n4. Exit");
+				type = scan.nextInt();
+				
+				if (type == 1)
+					addTree(inv);
+				else if (type == 2)
+					addPeren(inv); // do the perennial method 
+				else if (type == 3)
+					addBulk(inv); // do the bulk product method
+				else if (type == 4)
+					type = -999;
+				else if (type > 4 || type < 1)
+				{
+					System.out.println ("That is not a valid choice. Please try again!"); 
+					type = 0;
+				}
+					
+
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid choice. Please try again!");  
+				scan.nextLine();
+			}
+		}
+	} // end of typeMenu method
+	
+	// adds a new tree type item, a tree has a name (string), a cost to buy (double), a sales price( double), if it is an evergreen (boolean), and the number in stock (int)
+	/**
+	 * This is the main method when a user wants to add a tree type to the Inventory.
+	 * @param inv
+	 */
+	public void addTree (ArrayList<Inventory> inv)
+	{
+		Trees t = new Trees();
+		// need to set the loop triggers to know what fires off next
+		boolean forward = false; // for the outermost loop
+		// we will set 3 inner loops which will go through and add each part that is needed to construct a tree type
+		while (forward != true)
+			try
+			{
+				scan.nextLine(); // due to scanner issue
+				// we need to set the item name
+				System.out.println("Please enter the name of the tree: ");
+				String tName = scan.nextLine();
+				t.setItemName(tName);
+				boolean inner = false;
+				
+				while (inner != true)
+				{
+					try
+					{
+						System.out.println ("Please enter the cost to purchase: ");
+						double cost = scan.nextDouble();
+						if (cost < 0.01)
+						{
+							System.out.println("Please enter the actual cost!");
+							continue;
+						}
+						t.setCost(cost);
+						while (inner != true)
+						{
+							try
+							{
+								System.out.println ("Please enter the amount in stock: ");
+								int nis = scan.nextInt();
+								if (nis < 0)
+								{
+									System.out.println("Please enter the actual amount in stock!");
+									continue;
+								}
+								t.setNumInStock(nis);
+								while (inner != true)
+								{
+									try
+									{
+										System.out.println ("Please enter the sales price: (It should be more than " + currency.format(t.getCost()) + ").");
+										double sale = scan.nextDouble();
+										if (sale < 0.01 || sale <= t.getCost())
+										{
+											System.out.println("Please enter the actual sales price!");
+											continue;
+										}
+										t.setSalesPrice(sale);
+										while (inner != true)
+										{
+											try
+											{
+												System.out.println ("Is the tree an evergreen? (Enter true or false): ");
+												boolean evergreen = scan.nextBoolean();
+												t.setEvergreen(evergreen);
+												inv.add(t);
+												System.out.println(t.toString() + "\n" + t.getItemName() + " has been sucessfully added to the Inventory!\n");
+												inner = true;
+												forward = true;
+												
+											}
+											catch (InputMismatchException e)
+											{
+												System.out.println ("That is not a valid choice. Please try again!");  
+												scan.nextLine();
+											}
+											
+										}								
+									}
+									catch (InputMismatchException e)
+									{
+										System.out.println ("That is not a valid choice. Please try again!");  
+										scan.nextLine();
+									}
+									
+								}
+								
+								
+							}
+							catch (InputMismatchException e)
+							{
+								System.out.println ("That is not a valid choice. Please try again!");  
+								scan.nextLine();
+							}	
+						}
+						
+					}
+					catch (InputMismatchException e)
+					{
+						System.out.println ("That is not a valid choice. Please try again!");  
+						scan.nextLine();
+					}
+					
+				}
+				
+				
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid choice. Please try again!");  
+				scan.nextLine();
+			}
+	} // end of add tree method
+	
+	
+	/**
+	 * This is the method used when a user wants to add a bulk product to the inventory list.
+	 * @param inv
+	 */
+	public void addBulk (ArrayList<Inventory> inv)
+	{
+		// this has a weight question instead of the evergreen question
+		BulkProducts bp = new BulkProducts();
+		// need to set the loop triggers to know what fires off next
+		boolean forward = false; // for the outermost loop
+		// we will set 3 inner loops which will go through and add each part that is needed to construct a bulkproduct type
+		while (forward != true)
+			try
+			{
+				scan.nextLine(); // due to scanner issue
+				// we need to set the item name
+				System.out.println("Please enter the name of the product: ");
+				String tName = scan.nextLine();
+				bp.setItemName(tName);
+				boolean inner = false;
+				
+				while (inner != true)
+				{
+					try
+					{
+						System.out.println ("Please enter the cost to purchase: ");
+						double cost = scan.nextDouble();
+						if (cost < 0.01)
+						{
+							System.out.println("Please enter the actual cost!");
+							continue;
+						}
+						bp.setCost(cost);
+						while (inner != true)
+						{
+							try
+							{
+								System.out.println ("Please enter the amount in stock: ");
+								int nis = scan.nextInt();
+								if (nis < 0)
+								{
+									System.out.println("Please enter the actual amount in stock!");
+									continue;
+								}
+								bp.setNumInStock(nis);
+								while (inner != true)
+								{
+									try
+									{
+										System.out.println ("Please enter the sales price: (It should be more than " + currency.format(bp.getCost()) + ").");
+										double sale = scan.nextDouble();
+										if (sale < 0.01 || sale <= bp.getCost())
+										{
+											System.out.println("Please enter the actual sales price!");
+											continue;
+										}
+										bp.setSalesPrice(sale);
+										while (inner != true)
+										{
+											try
+											{
+												System.out.println ("Please enter the weight of the item in pounds: ");
+												double weight = scan.nextDouble();
+												if (weight < 0)
+												{
+													System.out.println("Please enter the actual weight of the item in pounds!");
+													continue;
+												}
+												bp.setWeight(weight);
+												inv.add(bp);
+												System.out.println(bp.toString() + "\n" + bp.getItemName() + " has been sucessfully added to the Inventory!\n");
+												inner = true;
+												forward = true;
+												
+											}
+											catch (InputMismatchException e)
+											{
+												System.out.println ("That is not a valid choice. Please try again!");  
+												scan.nextLine();
+											}
+											
+										}								
+									}
+									catch (InputMismatchException e)
+									{
+										System.out.println ("That is not a valid choice. Please try again!");  
+										scan.nextLine();
+									}
+									
+								}
+								
+								
+							}
+							catch (InputMismatchException e)
+							{
+								System.out.println ("That is not a valid choice. Please try again!");  
+								scan.nextLine();
+							}	
+						}
+						
+					}
+					catch (InputMismatchException e)
+					{
+						System.out.println ("That is not a valid choice. Please try again!");  
+						scan.nextLine();
+					}
+					
+				}
+				
+				
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid choice. Please try again!");  
+				scan.nextLine();
+			}
+		
+	} // end of addBulk method
+	
+	/**
+	 * This method allows a user to add a new Perennial item to the Inventory list.
+	 * @param inv
+	 */
+	public void addPeren (ArrayList<Inventory> inv)
+	{
+		// this has a weight question instead of the evergreen question
+				Perennials p = new Perennials();
+				// need to set the loop triggers to know what fires off next
+				boolean forward = false; // for the outermost loop
+				// we will set 3 inner loops which will go through and add each part that is needed to construct a bulkproduct type
+				while (forward != true)
+					try
+					{
+						scan.nextLine(); // due to scanner issue
+						// we need to set the item name
+						System.out.println("Please enter the name of the perennial: ");
+						String tName = scan.nextLine();
+						p.setItemName(tName);
+						boolean inner = false;
+						
+						while (inner != true)
+						{
+							try
+							{
+								System.out.println ("Please enter the cost to purchase: ");
+								double cost = scan.nextDouble();
+								if (cost < 0.01)
+								{
+									System.out.println("Please enter the actual cost!");
+									continue;
+								}
+								p.setCost(cost);
+								while (inner != true)
+								{
+									try
+									{
+										System.out.println ("Please enter the amount in stock: ");
+										int nis = scan.nextInt();
+										if (nis < 0)
+										{
+											System.out.println("Please enter the actual amount in stock!");
+											continue;
+										}
+										p.setNumInStock(nis);
+										while (inner != true)
+										{
+											try
+											{
+												System.out.println ("Please enter the sales price: (It should be more than " + currency.format(p.getCost()) + ").");
+												double sale = scan.nextDouble();
+												if (sale < 0.01 || sale <= p.getCost())
+												{
+													System.out.println("Please enter the actual sales price!");
+													continue;
+												}
+												p.setSalesPrice(sale);
+												while (inner != true)
+												{
+													try
+													{
+														scan.nextLine();
+														System.out.println ("Please enter the perennial's flower's color: ");
+														String color = scan.nextLine();
+														p.setFlowerColor(color);
+														inv.add(p);
+														System.out.println(p.toString() + "\n" + p.getItemName() + " has been sucessfully added to the Inventory!\n");
+														inner = true;
+														forward = true;
+														
+													}
+													catch (InputMismatchException e)
+													{
+														System.out.println ("That is not a valid choice. Please try again!");  
+														scan.nextLine();
+													}
+													
+												}								
+											}
+											catch (InputMismatchException e)
+											{
+												System.out.println ("That is not a valid choice. Please try again!");  
+												scan.nextLine();
+											}
+											
+										}
+										
+										
+									}
+									catch (InputMismatchException e)
+									{
+										System.out.println ("That is not a valid choice. Please try again!");  
+										scan.nextLine();
+									}	
+								}
+								
+							}
+							catch (InputMismatchException e)
+							{
+								System.out.println ("That is not a valid choice. Please try again!");  
+								scan.nextLine();
+							}
+							
+						}				
+					}
+					catch (InputMismatchException e)
+					{
+						System.out.println ("That is not a valid choice. Please try again!");  
+						scan.nextLine();
+					}
+	} // end of addPeren method
+	
+	/**
+	 * This method allows the user to edit inventory information.
+	 * @param inv
+	 */
+	public void editInv (ArrayList<Inventory> inv)
+	{
+		// we then need to print out all of the inventory items for the user to see
+		for (Inventory i : inv)
+			System.out.println (i.toString());
+
+		System.out.println("\nPlease note that you can only edit the Cost, Item Name, Number in Stock, and Sales Price in this menu.\nIf you'd like to edit specific information of an item" +
+							" such as weight, evergreen, or color\nthen you should add a new item and delete the old one.");
+		// for this method we will need a while loop
+		int choice = 0;
+		while (choice != -999)
+		{
+			// then ask the user to input the item they want to modify
+			try
+			{
+				System.out.println("\nPlease input the item # you would like to edit: (or enter -999 to exit)");
+				choice = scan.nextInt();
+				if (choice == -999)
+					break;
+				if (choice < 1000 && choice != -999)
+				{
+					System.out.println ("That is not a valid choice. Please try again!");  
+					continue;
+				}
+				else 
+				{
+					// set up a boolean that will let the user know if there item was not found
+					boolean notFound = true;
+					// get the item the user chose
+					for (int i = 0; i < inv.size(); ++i)
+					{
+						if (choice == inv.get(i).getInvNum())
+						{
+							notFound = false;
+							int decide = 0;
+							while (decide != 5)
+							{
+								// print out the item so the user knows that they will be editing
+								System.out.println (inv.get(i).toString());
+								try
+								{
+									// give the user options on what to edit then set up if else if statements below for each item
+									System.out.println("Please choose what you would like to edit about this item: \n1. Cost\n2. Item Name\n3. Number in Stock\n4. Sales Price\n5. Exit ");
+									decide = scan.nextInt();
+									if (decide < 1 || decide > 6)
+									{
+										System.out.println("That is not a valid choice. Please try again!");
+										continue;
+									}
+									if (decide == 1)
+									{
+										while (decide == 1)
+										{
+											try
+											{
+												System.out.println ("Please enter the item's new cost:");
+												double cost = scan.nextDouble();
+												if (cost < 0.01)
+												{
+													System.out.println("Please enter the actual cost!");
+												}
+												else
+												{
+													inv.get(i).setCost(cost);
+													if (inv.get(i).getCost() >= inv.get(i).getSalesPrice())
+													{
+														System.out.println("The cost is higher than or equal to the sale's price. Please modify the sales price.\n");
+														decide = 4;
+													}
+													else 
+														decide = 0;
+												}
+											}
+											catch (InputMismatchException e)
+											{
+												System.out.println ("That is not a valid choice. Please try again!");  
+												scan.nextLine();
+											}
+										}
+									}
+										
+									if (decide == 2)
+									{
+										while (decide == 2)
+										{
+											try
+											{
+												scan.nextLine();
+												System.out.println ("Please enter the item's new name:");
+												String name = scan.nextLine();
+												inv.get(i).setItemName(name);
+												decide = 0;
+											}
+											catch (InputMismatchException e)
+											{
+												System.out.println ("That is not a valid choice. Please try again!");  
+												scan.nextLine();
+											}
+										}
+									}
+									if (decide == 3)
+									{
+										while (decide == 3)
+										{
+											try
+											{
+												System.out.println ("Please enter the new amount in stock:");
+												int nis = scan.nextInt();
+												if (nis < 0)
+												{
+													System.out.println("Please enter the actual amount in stock!");
+												}
+													
+												else
+												{
+													inv.get(i).setNumInStock(nis);
+													decide = 0;
+												}
+											}
+											catch (InputMismatchException e)
+											{
+												System.out.println ("That is not a valid choice. Please try again!");  
+												scan.nextLine();
+											}
+										}
+									}
+									if (decide == 4)
+									{
+										while (decide == 4)
+										{
+											try
+											{
+												System.out.println ("Please enter the new sale price:");
+												double sale = scan.nextDouble();
+												if (sale < 0.01 || sale < inv.get(i).getCost())
+													System.out.println("The price is below cost, please try again!");
+												else
+												{
+													inv.get(i).setSalesPrice(sale);
+													decide = 0;
+												}
+											}
+											catch (InputMismatchException e)
+											{
+												System.out.println ("That is not a valid choice. Please try again!");  
+												scan.nextLine();
+											}
+										}
+									}
+
+							
+								}
+								catch (InputMismatchException e)
+								{
+									System.out.println ("That is not a valid choice. Please try again!");  
+									scan.nextLine();
+								}
+							}
+						}
+					}
+					// let the user know the item was not found
+					if (notFound == true)
+						System.out.println ("That item # does not exist. Please try again!");
+					
+				}
+				
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid choice. Please try again!\n");  
+				scan.nextLine();
+			}
+		
+		} // end of while loop
+	} // end of editInv method
+	
+	/**
+	 * This method sorts the Inventory ArrayList by the name of the item.
+	 * @param inv
+	 */
+	public void compareInv (ArrayList<Inventory> inv)
+	{
+		for (int i = inv.size() - 1 ; i > 1; --i)
+		{
+			for (int j = 0; j < i ; ++j)
+			{
+				// need to get the first inventory item's name
+				Inventory first = inv.get(j);
+				// get second inv item's name
+				Inventory second = inv.get(j+1);
+				// now get stirng one and string two
+				String one = first.getItemName();
+				String two = second.getItemName();
+				// if statement with the compare > 0
+				if (one.compareTo(two) > 0)
+				{
+					// make sure to have within the loops the compare and set each one to the opposites place in the list
+					inv.set(j, second);
+					inv.set(j+1, first);
+      
+				}
+			}
+		}
+	} // end of method
+	
+	/**
+	 * This method allows the user to enter the name of the item they are interested in and the program will find the item.
+	 * @param inv
+	 */
+	public void searchInv (ArrayList<Inventory> inv)
+	{
+		Scanner scan = new Scanner(System.in);
+		// do a while loop with a try and catch
+		boolean exit = false;
+		while (exit != true)
+		{
+			try
+			{
+				// need a scanner and need to prompt the user to enter in the name of the item (string) they are looking for
+				System.out.println("\nPlease enter the name of the item you would like to search the inventory for (or type 'exit' to return to the main menu): ");
+				String search = scan.nextLine();
+				// trim the string down 
+				search = search.trim();
+				// set up a string to make it lowercase to account for issues with searching
+				if (search.toLowerCase().equals("exit"))
+				{
+					exit = true;
+					continue;
+				}
+				// then we need to compare the Scanner string with the names of the different items
+				// if they are similar then we need to print out the item's info so the user can find the info they need. 
+				// if I put in "maple", it should find all of the maples
+				// set a boolean if an item is found
+				boolean found = false;
+				System.out.println("\nThe following items contain the search terms you entered: ");
+				for (int i = 0; i < inv.size(); ++i)
+				{
+					if (inv.get(i).getItemName().toLowerCase().contains(search.toLowerCase()))
+					{
+						System.out.println (inv.get(i).toString());
+						found = true;
+					}	
+				}
+				if (found == false)
+					System.out.println("Your search was unable to return any relevant items. Please try again.");
+				
+				
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid item name. Please try again!\n");  
+				scan.nextLine();
+			}
+		}
+		
+	} // end of searchInv method
+	
+	/**
+	 * This method will delete an item in the inventory.
+	 * @param inv
+	 */
+	public void deleteInv (ArrayList<Inventory> inv)
+	{
+		int choice = 0; // int for user to input the inv #
+		boolean found = false; // to check if the item exists
+		int index = 0; // the index location of the item to be deleted
+		
+		for (Inventory i : inv)
+			System.out.println (i.toString());
+
+		System.out.println("\nUsing this option will delete an inventory item from the database and should only be done at the request of a manager.");
+		// for this method we will need a while loop
+		while (choice != -999)
+		{
+			// then ask the user to input the item they want to modify
+			try
+			{
+				System.out.println("\nPlease input the item # you would like to edit: (or enter -999 to exit)");
+				choice = scan.nextInt();
+				if (choice == -999)
+					continue;
+				else if (choice < 1000 && choice != -999)
+				{
+					System.out.println ("That is not a valid choice. Please try again!");  
+					continue;
+				}
+				// then get the item they want to modify or if the item cannot be found then let the user know.  
+				for (int i = 0; i < inv.size(); ++i)
+				{
+					if (choice == inv.get(i).getInvNum())
+					{
+						found = true;
+						index = i;
+						break;
+					}
+				}
+				if (found == false)
+					System.out.println ("That item # does not exist. Please try again!");
+				else if (found == true)
+				{
+					if (inv.get(index).getNumInStock() > 0)
+						System.out.println ("That item still has inventory in stock.  It is not recommended to delete an item if the item is still in stock.");
+					boolean confirm = false;
+					while (confirm != true)
+					{
+						
+						try
+						{
+							System.out.println ("Please confirm the you would like to delete " + inv.get(index).getItemName() + ", please entere 'true' or 'false':");
+							confirm = scan.nextBoolean();
+							if (confirm == false)
+							{
+								choice = -999;
+								confirm = true;
+								continue;
+							}
+							if (confirm == true)
+							{
+								System.out.println ("Item: " + inv.get(index).getItemName() + " has been deleted!\n");
+								inv.remove(index);
+								choice = -999;
+							}
+						}
+						catch (InputMismatchException e)
+						{
+							System.out.println ("That is not a valid entry. Please try again!\n");  
+							scan.nextLine();
+						}
+					}
+				}
+			}
+			catch (InputMismatchException e)
+			{
+				System.out.println ("That is not a valid item number. Please try again!\n");  
+				scan.nextLine();
+			}
+		}
+	} // end of delete inventory method
+} // end of class
+
+/**
+ * This class provides a place to hold methods related to different print methods that did not seem to fit in any of the other classes.  
+ */
+
+public class MenuInfo
+{
+	NumberFormat currency = NumberFormat.getCurrencyInstance();
+	/**
+	 * Prints out each of the ArrayLists starting with Customer
+	 * @param cust
+	 * @param sales
+	 * @param inv
+	 */
+	public void printAll(ArrayList<Customer> cust, ArrayList<Sales> sales , ArrayList<Inventory> inv)
+	{
+		System.out.println("\nCustomers:");
+		for(Customer c: cust)
+			System.out.println(c.toString());
+		System.out.println("\nSales:");
+		for(Sales s: sales)
+			System.out.println(s.toString());
+		System.out.println("\nInventory:");
+		for(Inventory i: inv)
+			System.out.println(i.toString());
+	}
+  
+	/**
+	 * Prints out each of the sales and then prints out the total sales.  
+	 * @param sales
+	 */
+	public void printSales(ArrayList<Sales> sales)
+	{
+		double total = 0;
+		System.out.println("\nSales:");
+		for (Sales s : sales)
+		{
+			System.out.println (s.toString());
+			total = s.netSales() + total;
+		}
+		System.out.println ("\nThe total sales were: " + currency.format(total));
+    
+	}
+
+}
