@@ -6,7 +6,7 @@
 
 import java.text.NumberFormat;
 
-public class PayrollDriver 
+public class Payroll 
 {
 	public static void main ( String [] args )
 	{
