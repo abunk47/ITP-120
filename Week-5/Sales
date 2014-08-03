@@ -4,8 +4,6 @@
  * A.Bunk 6.20.2014
  */
 
-package abunkmod5;
-
 import java.text.*;
 
 public class SalesDriver 
