@@ -4,8 +4,6 @@
  * @author A.Bunk 7.6.2014
  */
 
-package abunkmod7;
-
 import java.awt.FileDialog;
 import java.awt.Frame;
 import java.io.*;
